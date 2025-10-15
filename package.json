@@ -1,0 +1,18 @@
+{
+  "name": "database-backupper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --watch --env-file=.env index.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cron": "^4.3.3",
+    "express": "^5.1.0"
+  },
+  "type": "module"
+}
