@@ -11,7 +11,8 @@ export const createDatabaseDump = async () => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const outputPath = path.join('.', `backup_${timestamp}.sql`);
 
-  const backupCommand = `PGPASSWORD="${process.env.DB_PASSWORD}" /opt/homebrew/opt/postgresql@17/bin/pg_dump -h ${process.env.DB_HOST} -p ${process.env.DB_PORT} -U ${process.env.DB_USER} -w -F c -b -v -f "${outputPath}" ${process.env.DATABASE}`;
+  // Use the correct pg_dump path for the Docker container
+  const backupCommand = `PGPASSWORD="${process.env.DB_PASSWORD}" /usr/bin/pg_dump -h ${process.env.DB_HOST} -p ${process.env.DB_PORT} -U ${process.env.DB_USER} -w -F c -b -v -f "${outputPath}" ${process.env.DATABASE}`;
 
       
   exec(backupCommand, (error, stdout, stderr) => {
