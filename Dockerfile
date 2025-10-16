@@ -2,13 +2,16 @@
 # syntax=docker/dockerfile:1
 
 # Define a build argument for Node.js version, defaulting to 22.14.0
-ARG NODE_VERSION=22.14.0
+ARG NODE_VERSION=22.20.0
 
 # Use official Node.js Alpine Linux image with the specified version
 FROM node:${NODE_VERSION}-alpine
 
 # Set the working directory inside the container
 WORKDIR /usr/src/app
+
+# Install PostgreSQL client utilities (pg_dump)
+RUN apk add --no-cache postgresql-client
 
 # Install dependencies using package.json and package-lock.json
 # Uses bind mounts for the files and a cache mount for npm
@@ -21,7 +24,7 @@ RUN --mount=type=bind,source=package.json,target=package.json \
 COPY . .
 
 # Switch to non-root user for better security
-USER node
+# USER node
 
 # Declare that the container will listen on port 3000
 EXPOSE 12500
