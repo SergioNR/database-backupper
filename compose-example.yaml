@@ -23,7 +23,8 @@ services:
       DB_USER: postgres
       DB_PASSWORD: 
       BACKUP_FREQUENCY: 0 * * * *
-      
+    volumes:
+      - ./backups:/tmp
     ports:
       - 12500:12500
     
