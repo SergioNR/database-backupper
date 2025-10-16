@@ -1,5 +1,5 @@
 import { CronJob } from "cron";
-import { createDatabaseDump } from "../../backup";
+import { createDatabaseDump } from "../../backup.js";
  
 // Every minute:  * * * * *  — runs every minute.
 // Every 5 minutes:  */5 * * * *  — runs every 5 minutes.
