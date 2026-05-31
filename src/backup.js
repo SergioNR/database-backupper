@@ -1,5 +1,13 @@
 import { execSync } from 'node:child_process'
 import path from 'node:path'
+import fs from 'node:fs'
+
+export const backupState = {
+  lastBackup: null,
+  lastStatus: null,
+  lastError: null,
+  backupCount: 0
+}
 
 export const createDatabaseDump = () => {
 
@@ -14,9 +22,37 @@ export const createDatabaseDump = () => {
   try {
     execSync(backupCommand, { stdio: 'pipe' });
     console.log(`Database dump created successfully at ${outputPath}`);
+
+    backupState.lastBackup = new Date().toISOString();
+    backupState.lastStatus = 'success';
+    backupState.lastError = null;
+    backupState.backupCount++;
+
+    rotateBackups();
   } catch (error) {
     console.error(`Error creating database dump: ${error.message}`);
+
+    backupState.lastBackup = new Date().toISOString();
+    backupState.lastStatus = 'failed';
+    backupState.lastError = error.message;
+
     throw error;
   }
 
 };
+
+function rotateBackups() {
+  const maxBackups = parseInt(process.env.MAX_BACKUPS, 10);
+  if (!maxBackups || maxBackups <= 0) return;
+
+  const tmpDir = '/tmp';
+  const files = fs.readdirSync(tmpDir)
+    .filter(f => f.startsWith('backup_') && f.endsWith('.sql'))
+    .sort();
+
+  while (files.length > maxBackups) {
+    const toDelete = files.shift();
+    fs.unlinkSync(path.join(tmpDir, toDelete));
+    console.log(`Rotated backup: deleted ${toDelete}`);
+  }
+}

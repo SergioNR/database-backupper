@@ -16,6 +16,7 @@ services:
       BACKUP_EVERY_8H: "false"
       BACKUP_EVERY_24H: "true"
       BACKUP_WEEKLY: "false"
+      MAX_BACKUPS: 10
     volumes:
       - ./backups:/tmp
     ports:

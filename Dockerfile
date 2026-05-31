@@ -27,8 +27,12 @@ COPY src/ ./src/
 # Switch to non-root user for better security
 # USER node
 
-# Declare that the container will listen on port 3000
+# Declare that the container will listen on port 12500
 EXPOSE 12500
+
+# Health check for container orchestration
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:12500/health || exit 1
 
 # Set the default command to run the local startup script
 CMD ["npm", "run", "start:deploy"] 
