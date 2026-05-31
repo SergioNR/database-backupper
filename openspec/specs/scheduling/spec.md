@@ -1,43 +1,79 @@
 # Scheduling Specification
 
 ## Purpose
-Manage scheduled backup execution using cron expressions via the `cron` npm package.
+Manage scheduled backup execution using preset cron intervals via the `cron` npm package.
 
 ## Requirements
 
-### Requirement: Cron job definition
-The system defines a CronJob instance using `BACKUP_FREQUENCY` from the environment.
+### Requirement: Preset schedule configuration
+The system provides four preset backup schedules controlled by boolean env vars.
 
-#### Scenario: CronJob is created with environment schedule
-- GIVEN `createDatabaseDumpJob.js` is imported
-- WHEN the module loads
-- THEN a `CronJob` instance is constructed with `process.env.BACKUP_FREQUENCY` as the schedule
-- AND the job's callback calls `createDatabaseDump()` inside a try/catch
+#### Scenario: Every 2 hours enabled
+- GIVEN `BACKUP_EVERY_2H` is set to `"true"`
+- WHEN the application starts
+- THEN a CronJob is created with cron expression `0 */2 * * *`
+- AND the job is labeled "every-2h"
 
-#### Scenario: CronJob.start() is never called
-- GIVEN the CronJob instance is created at module load time
-- WHEN the module is imported anywhere
-- THEN `.start()` is never invoked on the CronJob
-- AND the job will never fire regardless of schedule configuration
+#### Scenario: Every 8 hours enabled
+- GIVEN `BACKUP_EVERY_8H` is set to `"true"`
+- WHEN the application starts
+- THEN a CronJob is created with cron expression `0 */8 * * *`
+- AND the job is labeled "every-8h"
 
-### Requirement: Cron job error handling
-The cron job callback includes a try/catch block that references an undefined function.
+#### Scenario: Every 24 hours enabled
+- GIVEN `BACKUP_EVERY_24H` is set to `"true"`
+- WHEN the application starts
+- THEN a CronJob is created with cron expression `0 2 * * *`
+- AND the job is labeled "every-24h"
 
-#### Scenario: Error in cron callback
-- GIVEN the cron job callback runs and `createDatabaseDump()` throws
+#### Scenario: Weekly enabled
+- GIVEN `BACKUP_WEEKLY` is set to `"true"`
+- WHEN the application starts
+- THEN a CronJob is created with cron expression `0 2 * * 0`
+- AND the job is labeled "weekly"
+
+### Requirement: Multiple simultaneous schedules
+Multiple presets can be enabled at the same time, each running independently.
+
+#### Scenario: Two presets enabled
+- GIVEN `BACKUP_EVERY_2H` and `BACKUP_EVERY_24H` are both set to `"true"`
+- WHEN `startCronJobs()` is called
+- THEN two CronJobs are created and started
+- AND backups run on both schedules independently
+
+### Requirement: Disabled presets are skipped
+Presets set to any value other than `"true"` are ignored.
+
+#### Scenario: Preset set to false
+- GIVEN `BACKUP_EVERY_2H` is set to `"false"`
+- WHEN `startCronJobs()` is called
+- THEN no CronJob is created for that preset
+
+### Requirement: No schedules configured
+When no presets are enabled, a warning is logged.
+
+#### Scenario: All presets disabled
+- GIVEN no preset env vars are set to `"true"`
+- WHEN `startCronJobs()` is called
+- THEN a warning is logged listing the available env vars
+- AND no CronJobs are created
+
+### Requirement: Startup logging
+Active schedules are logged on startup.
+
+#### Scenario: Schedules active
+- GIVEN one or more presets are enabled
+- WHEN `startCronJobs()` is called
+- THEN a log message lists all active schedule labels
+
+### Requirement: Job error handling
+Each job's callback catches errors and logs them with the job label.
+
+#### Scenario: Backup fails in scheduled job
+- GIVEN a scheduled job runs and `createDatabaseDump()` throws
 - WHEN the catch block executes
-- THEN `logError()` is called
-- AND `logError` is not imported or defined, causing a ReferenceError
-- AND the original error is silently lost
-
-### Requirement: Scheduler orchestration
-The `startCronJobs` function is intended to start all cron jobs but contains a type error.
-
-#### Scenario: startCronJobs is called
-- GIVEN `startCronJobs()` is called
-- WHEN it invokes `createDatabaseBackupJob()` 
-- THEN a TypeError is thrown because `createDatabaseBackupJob` is a `CronJob` instance, not a function
-- AND the scheduler fails
+- THEN the error is logged to `console.error` with the job label prefix
+- AND the CronJob continues scheduling future runs
 
 ### Requirement: Scheduler is disabled
 The cron scheduler is commented out in the application entry point.
@@ -46,19 +82,5 @@ The cron scheduler is commented out in the application entry point.
 - GIVEN the application starts via `index.mjs`
 - WHEN the main script runs
 - THEN `startCronJobs()` is commented out and never called
-- AND only the initial backup on startup occurs (via direct `createDatabaseDump()` call)
+- AND only the initial backup on startup occurs
 - AND no recurring backups are scheduled
-
-### Requirement: Environment read at module load
-`BACKUP_FREQUENCY` is read from `process.env` at module load time, not at schedule time.
-
-#### Scenario: Environment not available at import time
-- GIVEN `BACKUP_FREQUENCY` is not set when the module loads
-- WHEN the CronJob constructor receives `undefined` as the schedule
-- THEN the cron library behavior is undefined (likely throws or defaults)
-
-## Known Issues
-- `startCronJobs()` calls a CronJob instance as a function — TypeError at runtime
-- `CronJob.start()` is never called — even if instantiated, the job won't fire
-- `logError` is not imported or defined — ReferenceError in the catch block
-- `BACKUP_FREQUENCY` read at import time, not runtime

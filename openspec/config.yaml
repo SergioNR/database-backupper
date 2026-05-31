@@ -9,11 +9,12 @@ context: |
   Backup output: /tmp inside container, mounted via Docker volumes
   CI: GitHub Actions — builds on push to "latest" or "next" branches, pushes to sergion14/database-backup on Docker Hub
   File extensions: .mjs for entry point, .js for all other modules (both treated as ESM due to "type": "module")
+  Scheduling env vars:
+    - BACKUP_EVERY_2H (0 */2 * * *)
+    - BACKUP_EVERY_8H (0 */8 * * *)
+    - BACKUP_EVERY_24H (0 2 * * *)
+    - BACKUP_WEEKLY (0 2 * * 0)
   Known issues:
-    - backup.js uses callback-based exec() inside an async function — caller cannot await completion
-    - startCronJobs() calls a CronJob instance as a function — TypeError at runtime
-    - CronJob.start() is never called — scheduled jobs won't fire
-    - logError is undefined in createDatabaseDumpJob.js — ReferenceError in catch block
     - startCronJobs() is commented out in index.mjs — scheduler is disabled
     - No health check endpoint exists
     - No routes defined on Express server
