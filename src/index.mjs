@@ -30,7 +30,11 @@ app.get('/health', (req, res) => {
     });
 });
 
-createDatabaseDump()
+try {
+    createDatabaseDump()
+} catch (error) {
+    console.error(`Initial backup failed: ${error.message}`)
+}
 
 startCronJobs()
 
