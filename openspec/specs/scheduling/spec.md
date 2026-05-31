@@ -5,6 +5,22 @@ Manage scheduled backup execution using preset cron intervals via the `cron` npm
 
 ## Requirements
 
+### Requirement: Scheduler activation
+The system SHALL activate the cron scheduler on application startup.
+
+#### Scenario: Scheduler enabled on startup
+- GIVEN one or more preset env vars are set to "true"
+- WHEN the application starts
+- THEN an initial backup is created
+- AND startCronJobs() is called to schedule recurring backups
+
+#### Scenario: No schedules configured
+- GIVEN no preset env vars are set to "true"
+- WHEN the application starts
+- THEN an initial backup is created
+- AND a warning is logged that no schedules are configured
+- AND no cron jobs are scheduled
+
 ### Requirement: Preset schedule configuration
 The system provides four preset backup schedules controlled by boolean env vars.
 
@@ -49,15 +65,6 @@ Presets set to any value other than `"true"` are ignored.
 - WHEN `startCronJobs()` is called
 - THEN no CronJob is created for that preset
 
-### Requirement: No schedules configured
-When no presets are enabled, a warning is logged.
-
-#### Scenario: All presets disabled
-- GIVEN no preset env vars are set to `"true"`
-- WHEN `startCronJobs()` is called
-- THEN a warning is logged listing the available env vars
-- AND no CronJobs are created
-
 ### Requirement: Startup logging
 Active schedules are logged on startup.
 
@@ -74,13 +81,3 @@ Each job's callback catches errors and logs them with the job label.
 - WHEN the catch block executes
 - THEN the error is logged to `console.error` with the job label prefix
 - AND the CronJob continues scheduling future runs
-
-### Requirement: Scheduler is disabled
-The cron scheduler is commented out in the application entry point.
-
-#### Scenario: Application starts (current state)
-- GIVEN the application starts via `index.mjs`
-- WHEN the main script runs
-- THEN `startCronJobs()` is commented out and never called
-- AND only the initial backup on startup occurs
-- AND no recurring backups are scheduled
