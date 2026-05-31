@@ -122,16 +122,21 @@ The project includes a GitHub Actions workflow that automatically builds and pus
 ## Project Structure
 
 ```
-├── backup.js              # Database backup functionality
-├── index.mjs              # Main application entry point
-├── Dockerfile             # Docker image definition
-├── compose-example.yaml   # Example Docker Compose configuration
-├── .env.example           # Example environment variables
-├── package.json           # Node.js dependencies and scripts
-└── cron/
-    ├── cronJobScheduler.js        # Cron job scheduler
-    └── jobs/
-        └── createDatabaseDumpJob.js  # Database dump cron job
+├── src/
+│   ├── index.mjs                     # Main application entry point
+│   ├── backup.js                     # Database backup functionality
+│   └── cron/
+│       ├── cronJobScheduler.js       # Cron job scheduler
+│       └── jobs/
+│           └── createDatabaseDumpJob.js  # Database dump cron job
+├── openspec/
+│   ├── config.yaml                   # Project context for AI agents
+│   ├── specs/                        # Behavioral specifications
+│   └── changes/                      # Proposed modifications
+├── Dockerfile                        # Docker image definition
+├── compose-example.yaml              # Example Docker Compose configuration
+├── .env.example                      # Example environment variables
+└── package.json                      # Node.js dependencies and scripts
 ```
 
 ## Security Considerations

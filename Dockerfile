@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 
 # Define a build argument for Node.js version, defaulting to 22.14.0
-ARG NODE_VERSION=22.20.0
+ARG NODE_VERSION=26
 
 # Use official Node.js Alpine Linux image with the specified version
 FROM node:${NODE_VERSION}-alpine
@@ -20,8 +20,9 @@ RUN --mount=type=bind,source=package.json,target=package.json \
     --mount=type=cache,target=/root/.npm \
     npm ci --omit-dev 
 
-# Copy all remaining source files into the container
-COPY . .
+# Copy package files and source code
+COPY package.json package-lock.json ./
+COPY src/ ./src/
 
 # Switch to non-root user for better security
 # USER node
@@ -30,4 +31,4 @@ COPY . .
 EXPOSE 12500
 
 # Set the default command to run the local startup script
-CMD ["npm", "run", "start"] 
+CMD ["npm", "run", "start:deploy"] 

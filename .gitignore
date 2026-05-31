@@ -1,7 +1,11 @@
 /node_modules
 
-.DS_Store
+.kilocode
 
-backup*
+.env
+
+/backups
+
+.DS_Store
 
 compose.yaml
