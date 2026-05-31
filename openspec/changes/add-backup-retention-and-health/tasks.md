@@ -1,11 +1,11 @@
 # Tasks
 
 ## 0. Prerequisite Fixes
-- [ ] 0.1 Convert `exec()` to `execSync()` in backup.js so createDatabaseDump is truly awaitable
-- [ ] 0.2 Remove unused `fs` import from backup.js
-- [ ] 0.3 Fix cronJobScheduler.js: change `createDatabaseBackupJob()` to `createDatabaseBackupJob.start()`
-- [ ] 0.4 Add `.start()` call to CronJob in createDatabaseDumpJob.js (or ensure scheduler calls it)
-- [ ] 0.5 Replace undefined `logError(...)` with `console.error(...)` in createDatabaseDumpJob.js
+- [x] 0.1 Convert `exec()` to `execSync()` in backup.js so createDatabaseDump is truly awaitable
+- [x] 0.2 Remove unused `fs` import from backup.js
+- [x] 0.3 Fix cronJobScheduler.js: change `createDatabaseBackupJob()` to `createDatabaseBackupJob.start()`
+- [x] 0.4 Add `.start()` call to CronJob in createDatabaseDumpJob.js (or ensure scheduler calls it)
+- [x] 0.5 Replace undefined `logError(...)` with `console.error(...)` in createDatabaseDumpJob.js
 
 ## 1. Backup State Tracking
 - [ ] 1.1 Export `backupState` object from backup.js

@@ -1,32 +1,22 @@
-import { exec } from 'node:child_process'
+import { execSync } from 'node:child_process'
 import path from 'node:path'
-import fs from 'node:fs'
 
-export const createDatabaseDump = async () => {
+export const createDatabaseDump = () => {
 
     if (!process.env.DB_HOST || !process.env.DB_PORT || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DATABASE) {
     throw new Error(' error: host, port, user, password, and database are required');
   }
-  // Create output file name with timestamp
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const outputPath = path.join('/tmp', `backup_${timestamp}.sql`);
 
-  // Use the correct pg_dump path for the Docker container
   const backupCommand = `PGPASSWORD="${process.env.DB_PASSWORD}" /usr/bin/pg_dump -h ${process.env.DB_HOST} -p ${process.env.DB_PORT} -U ${process.env.DB_USER} -w -F c -b -v -f "${outputPath}" ${process.env.DATABASE}`;
 
-      
-  exec(backupCommand, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Error creating database dump: ${error.message}`);
-      return;
-    }
-    if (stderr) {
-      console.error(`pg_dump stderr: ${stderr}`);
-      return;
-    }
+  try {
+    execSync(backupCommand, { stdio: 'pipe' });
     console.log(`Database dump created successfully at ${outputPath}`);
-  })
+  } catch (error) {
+    console.error(`Error creating database dump: ${error.message}`);
+    throw error;
+  }
 
 };
-
-

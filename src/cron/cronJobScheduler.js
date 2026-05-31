@@ -1,6 +1,9 @@
-import { createDatabaseBackupJob } from "./jobs/createDatabaseDumpJob.js";
+import { initDatabaseBackupJob, createDatabaseBackupJob } from "./jobs/createDatabaseDumpJob.js";
 
 export const startCronJobs = () => {
+    initDatabaseBackupJob();
 
-    createDatabaseBackupJob()
+    if (createDatabaseBackupJob) {
+        createDatabaseBackupJob.start();
+    }
 }
