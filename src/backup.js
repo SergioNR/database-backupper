@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
+import { uploadToS3, isS3Configured } from './s3.js'
 
 export const backupState = {
   lastBackup: null,
@@ -27,6 +28,14 @@ export const createDatabaseDump = () => {
     backupState.lastStatus = 'success';
     backupState.lastError = null;
     backupState.backupCount++;
+
+    if (isS3Configured()) {
+      try {
+        uploadToS3(outputPath);
+      } catch (error) {
+        console.error(`S3 upload error: ${error.message}`);
+      }
+    }
 
     rotateBackups();
   } catch (error) {

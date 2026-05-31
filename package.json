@@ -2,15 +2,16 @@
   "name": "database-backupper",
   "version": "1.0.0",
   "description": "",
-  "main": "src/index.mjs",
+  "main": "src/index.js",
   "scripts": {
-    "start:local": "node --watch --env-file=.env src/index.mjs",
-    "start:deploy": "node src/index.mjs"
+    "start:local": "node --watch --env-file=.env src/index.js",
+    "start:deploy": "node src/index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1057.0",
     "cron": "^4.3.3",
     "express": "^5.1.0"
   },

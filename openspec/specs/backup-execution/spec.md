@@ -1,22 +1,28 @@
 # Backup Execution Specification
 
 ## Purpose
-Create PostgreSQL database dumps using pg_dump.
+Create PostgreSQL database dumps using pg_dump, optionally upload to S3, and manage local retention.
 
 ## Requirements
 
 ### Requirement: Manual backup trigger
-The system creates a database dump when `createDatabaseDump()` is called (on startup or by scheduled jobs) and tracks the result for health reporting.
+The system creates a database dump when `createDatabaseDump()` is called (on startup or by scheduled jobs), tracks the result, and optionally uploads to S3 before running retention cleanup.
 
-#### Scenario: Successful backup tracked
-- GIVEN all required environment variables are set (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DATABASE)
+#### Scenario: Successful backup with S3 upload
+- GIVEN all database env vars are set and `S3_BUCKET` is configured
 - WHEN `createDatabaseDump()` is called
-- THEN a shell command is constructed using `PGPASSWORD` as a prefix and `pg_dump` with flags `-F c -b -v -w`
-- AND the shell command is executed synchronously via Node.js `execSync()` with `stdio: 'pipe'`
-- AND on success, a success message with the output path is logged
-- AND the backup file is written to `/tmp/backup_<timestamp>.sql`
+- THEN the dump file is created locally
 - AND the last backup timestamp and status ("success") are recorded in backupState
-- AND the retention check runs
+- AND the file is uploaded to S3
+- AND retention cleanup runs
+
+#### Scenario: Successful backup without S3
+- GIVEN all database env vars are set and `S3_BUCKET` is not set
+- WHEN `createDatabaseDump()` is called
+- THEN the dump file is created locally
+- AND the last backup timestamp and status ("success") are recorded in backupState
+- AND no upload is attempted
+- AND retention cleanup runs
 
 #### Scenario: Missing environment variables
 - GIVEN one or more of DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, or DATABASE are not set
