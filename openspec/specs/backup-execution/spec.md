@@ -1,50 +1,34 @@
 # Backup Execution Specification
 
 ## Purpose
-Create PostgreSQL database dumps using pg_dump, optionally upload to S3, and manage local retention.
+Create PostgreSQL database dumps using pg_dump with per-request connection details.
 
 ## Requirements
 
-### Requirement: Manual backup trigger
-The system creates a database dump when `createDatabaseDump()` is called (on startup or by scheduled jobs), tracks the result, and optionally uploads to S3 before running retention cleanup.
+### Requirement: Per-request database dump
+The system creates a database dump when the dump processor picks up a pending request, using per-request connection details.
 
-#### Scenario: Successful backup with S3 upload
-- GIVEN all database env vars are set and `S3_BUCKET` is configured
-- WHEN `createDatabaseDump()` is called
-- THEN the dump file is created locally
-- AND the last backup timestamp and status ("success") are recorded in backupState
-- AND the file is uploaded to S3
-- AND retention cleanup runs
+#### Scenario: Successful dump from request
+- GIVEN a BackupRequest with status `pending` exists with host, port, user, password, database
+- WHEN the dump processor runs
+- THEN `pg_dump` is executed with the request's connection details
+- AND the backup file is written to `/tmp/backup_<requestId>_<timestamp>.sql`
+- AND the dumpPath is recorded on the request
 
-#### Scenario: Successful backup without S3
-- GIVEN all database env vars are set and `S3_BUCKET` is not set
-- WHEN `createDatabaseDump()` is called
-- THEN the dump file is created locally
-- AND the last backup timestamp and status ("success") are recorded in backupState
-- AND no upload is attempted
-- AND retention cleanup runs
-
-#### Scenario: Missing environment variables
-- GIVEN one or more of DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, or DATABASE are not set
-- WHEN `createDatabaseDump()` is called
-- THEN an error is thrown with message "host, port, user, password, and database are required"
-- AND no pg_dump command is attempted
-
-#### Scenario: Failed backup tracked
-- GIVEN all environment variables are set
-- AND pg_dump cannot connect to the database or encounters an error
-- WHEN execSync throws
-- THEN the error message is logged to console.error
-- AND the error is re-thrown so the caller can handle it
-- AND the last backup timestamp and status ("failed") are recorded in backupState
+#### Scenario: Failed dump
+- GIVEN a BackupRequest with status `pending` exists
+- AND `pg_dump` fails (connection error, auth error)
+- WHEN the dump processor runs
+- THEN the request status is set to `failed`
+- AND the error message is recorded on the request
 
 ### Requirement: Backup file naming
-Backup files use a timestamp-based naming scheme.
+Backup files use a request ID and timestamp-based naming scheme.
 
 #### Scenario: Filename construction
-- GIVEN a backup is triggered
+- GIVEN a backup is triggered for a request
 - WHEN the output path is constructed
-- THEN the filename follows the pattern `backup_YYYY-MM-DDTHH-MM-SS-sssZ.sql`
+- THEN the filename follows the pattern `backup_<requestId>_<timestamp>.sql`
 - AND colons and periods in the ISO timestamp are replaced with hyphens
 - AND the file is placed in `/tmp/`
 
@@ -52,34 +36,10 @@ Backup files use a timestamp-based naming scheme.
 Database password is embedded directly in the shell command string.
 
 #### Scenario: Password handling
-- GIVEN DB_PASSWORD is set
+- GIVEN a backup request with a password
 - WHEN the backup command is constructed
 - THEN PGPASSWORD is set as a shell variable prefix: `PGPASSWORD="<value>" /usr/bin/pg_dump ...`
 - AND the `-w` flag suppresses the interactive password prompt
-
-### Requirement: Backup retention
-The system SHALL limit the number of stored backup files by removing the oldest when a configurable limit is exceeded.
-
-#### Scenario: Retention limit not exceeded
-- GIVEN MAX_BACKUPS is set to 5
-- AND 3 backup files exist in /tmp
-- WHEN a new backup is created
-- THEN the new file is kept
-- AND no existing files are deleted
-
-#### Scenario: Retention limit exceeded
-- GIVEN MAX_BACKUPS is set to 5
-- AND 5 backup files exist in /tmp
-- WHEN a new backup is created
-- THEN the oldest backup file is deleted
-- AND the new file is kept
-- AND exactly 5 files remain
-
-#### Scenario: MAX_BACKUPS not set
-- GIVEN MAX_BACKUPS is not configured
-- WHEN a new backup is created
-- THEN no files are deleted
-- AND backups accumulate without limit
 
 ## Known Issues
 - Password is visible in the process arguments on the host system

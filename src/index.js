@@ -1,53 +1,54 @@
 import express from 'express'
-import { createDatabaseDump, backupState } from './backup.js';
-import { startCronJobs } from './cron/cronJobScheduler.js';
-import { isS3Configured, s3State, getRetryQueueSize, startRetryTimer } from './s3.js';
+import swaggerUi from 'swagger-ui-express'
+import swaggerJSDoc from 'swagger-jsdoc'
+import { prisma } from './db.js'
+import backupRoutes from './routes/backups.js'
+import { startDumpProcessor } from './processors/dumpProcessor.js'
+import { startUploadProcessor } from './processors/uploadProcessor.js'
 
-
-const app = express();
-
-app.get('/health', (req, res) => {
-    const response = {};
-
-    if (backupState.lastStatus === 'failed') {
-        response.status = 'degraded';
-        response.lastBackup = backupState.lastBackup;
-        response.lastError = backupState.lastError;
-        response.backupCount = backupState.backupCount;
-    } else if (backupState.lastStatus === 'success') {
-        response.status = 'ok';
-        response.lastBackup = backupState.lastBackup;
-        response.backupCount = backupState.backupCount;
-    } else {
-        response.status = 'starting';
-        response.lastBackup = null;
-        response.backupCount = 0;
-    }
-
-    if (isS3Configured()) {
-        response.s3Status = s3State.status || 'pending';
-        response.s3LastUpload = s3State.lastUpload;
-        response.s3RetryQueue = getRetryQueueSize();
-        if (s3State.lastError) {
-            response.s3Error = s3State.lastError;
-        }
-    }
-
-    const httpStatus = response.status === 'degraded' ? 503 : 200;
-    return res.status(httpStatus).json(response);
-});
-
-try {
-    createDatabaseDump()
-} catch (error) {
-    console.error(`Initial backup failed: ${error.message}`)
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is required')
+  process.exit(1)
 }
 
-startCronJobs()
+const app = express()
+app.use(express.json())
 
-startRetryTimer()
+const swaggerSpec = swaggerJSDoc({
+  definition: {
+    openapi: '3.0.0',
+    info: { title: 'Database Backupper API', version: '1.0.0' },
+  },
+  apis: ['./src/routes/*.js'],
+})
 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+app.use(backupRoutes)
 
-app.listen(process.env.PORT, () => {
+app.get('/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    return res.json({ status: 'ok', database: 'connected' })
+  } catch (error) {
+    return res.status(503).json({ status: 'degraded', database: 'disconnected', error: error.message })
+  }
+})
+
+async function start() {
+  await prisma.$connect()
+  console.log('Connected to metadata database')
+
+  const interval = (parseInt(process.env.PROCESSOR_INTERVAL, 10) || 900) * 1000
+
+  startDumpProcessor(interval)
+  startUploadProcessor(interval)
+
+  app.listen(process.env.PORT, () => {
     console.log(`Server running on port ${process.env.PORT}`)
+  })
+}
+
+start().catch((error) => {
+  console.error(`Failed to start: ${error.message}`)
+  process.exit(1)
 })

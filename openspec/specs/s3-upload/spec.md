@@ -1,24 +1,18 @@
 # S3 Upload Specification
 
 ## Purpose
-Upload backup files to S3-compatible storage for durable off-site backup.
+Upload backup files to S3-compatible storage for durable off-site backup, driven by the upload processor.
 
 ## Requirements
 
 ### Requirement: S3-compatible upload
-The system SHALL upload backup files to S3-compatible storage after each successful backup.
+The upload processor SHALL upload dump files to S3 based on BackupRequest records.
 
-#### Scenario: Upload after successful backup
-- GIVEN `S3_BUCKET` is configured and all S3 credentials are set
-- WHEN a backup file is created successfully
-- THEN the file is uploaded to the configured S3 bucket using `PutObjectCommand`
-- AND the S3 object key is `<S3_PATH_PREFIX/>backup_<timestamp>.sql` (prefix omitted if not set)
-
-#### Scenario: S3 not configured
-- GIVEN `S3_BUCKET` is not set
-- WHEN a backup file is created successfully
-- THEN no upload is attempted
-- AND the backup exists only in local storage
+#### Scenario: Upload from request record
+- GIVEN a BackupRequest with status `dumped` exists and S3 is configured
+- WHEN the upload processor runs
+- THEN the file at `dumpPath` is uploaded to S3
+- AND the s3Key is recorded on the request
 
 #### Scenario: Custom S3-compatible endpoint
 - GIVEN `S3_ENDPOINT` is set to a non-AWS URL (e.g. `http://minio:9000`)
@@ -32,61 +26,19 @@ The system SHALL NOT crash if S3 credentials are missing or invalid. Missing cre
 
 #### Scenario: S3_BUCKET set but credentials missing
 - GIVEN `S3_BUCKET` is set but `S3_ACCESS_KEY` or `S3_SECRET_KEY` is not set
-- WHEN the application starts or a backup completes
-- THEN a warning is logged that S3 is partially configured and uploads are disabled
-- AND no upload is attempted
-- AND the server continues running normally
+- WHEN the upload processor checks S3 configuration
+- THEN S3 is treated as not configured
+- AND the request is marked as uploaded (skipped)
 
-#### Scenario: S3_BUCKET set but credentials are invalid
-- GIVEN `S3_BUCKET` is set and `S3_ACCESS_KEY` and `S3_SECRET_KEY` are set but incorrect
-- WHEN an upload is attempted
-- THEN the upload fails with an authentication error
-- AND the error is logged
-- AND the file is added to the retry queue
-- AND the server continues running normally
-
-### Requirement: Upload failure tolerance
-The system SHALL NOT fail the backup if the S3 upload fails.
+### Requirement: Upload failure handling
+The system SHALL set the request status to `failed` if the S3 upload fails.
 
 #### Scenario: Upload fails
-- GIVEN a backup file is created successfully
-- AND the S3 upload fails (network error, auth error, bucket not found)
+- GIVEN a backup file exists locally and the S3 upload fails
 - WHEN the upload error is caught
 - THEN the error is logged with details
 - AND the local backup file is preserved
-- AND the backup is still counted as successful in `backupState`
-- AND the file is added to the retry queue
-
-### Requirement: Retry queue for failed uploads
-The system SHALL maintain an in-memory queue of local backup files that failed to upload and retry them on a periodic schedule.
-
-#### Scenario: Failed upload is queued for retry
-- GIVEN a backup file exists locally and its S3 upload failed
-- WHEN the upload failure is caught
-- THEN the file path is added to the retry queue
-- AND the queue is deduplicated (same file not added twice)
-
-#### Scenario: Retry succeeds
-- GIVEN the retry queue contains files from previous failed uploads
-- AND S3 connectivity has been restored
-- WHEN the retry timer fires
-- THEN each queued file is uploaded to S3
-- AND successfully uploaded files are removed from the queue
-- AND a log message confirms each retried upload
-
-#### Scenario: Retry also fails
-- GIVEN the retry queue contains files
-- AND S3 is still unavailable
-- WHEN the retry timer fires
-- THEN files that still fail remain in the queue
-- AND the error is logged per file
-- AND the retry will be attempted again on the next interval
-
-#### Scenario: Retry interval
-- GIVEN `S3_BUCKET` is configured
-- WHEN the application starts
-- THEN a retry timer runs every `S3_RETRY_INTERVAL` seconds (default: 300 / 5 minutes)
-- AND the timer only runs while there are files in the retry queue
+- AND the request status is set to `failed` with the error message
 
 ### Requirement: Lazy S3 client initialization
 The S3Client SHALL be created once on first upload attempt and reused.
@@ -102,10 +54,10 @@ The system SHALL support an optional path prefix for organizing backups in the b
 
 #### Scenario: Prefix configured
 - GIVEN `S3_PATH_PREFIX` is set to `myapp/backups`
-- WHEN a file `backup_2026-05-31T20-00-00-000Z.sql` is uploaded
-- THEN the object key is `myapp/backups/backup_2026-05-31T20-00-00-000Z.sql`
+- WHEN a file `backup_xxx_2026-05-31T20-00-00-000Z.sql` is uploaded
+- THEN the object key is `myapp/backups/backup_xxx_2026-05-31T20-00-00-000Z.sql`
 
 #### Scenario: No prefix
 - GIVEN `S3_PATH_PREFIX` is not set
 - WHEN a file is uploaded
-- THEN the object key is `backup_2026-05-31T20-00-00-000Z.sql`
+- THEN the object key is just the filename

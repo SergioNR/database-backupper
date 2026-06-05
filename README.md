@@ -1,6 +1,6 @@
 # Database Backupper
 
-Automated PostgreSQL database backups with preset scheduling and optional S3 upload.
+API-driven PostgreSQL backup service. Accepts backup requests via REST API, creates dumps using `pg_dump`, and optionally uploads to S3-compatible storage. Backup requests are persisted in a PostgreSQL database and processed asynchronously by internal processors.
 
 ## Quick Start
 
@@ -15,13 +15,7 @@ cp compose-example.yaml docker-compose.yaml
 ```yaml
 environment:
   PORT: 12500
-  DB_HOST: your_database_host
-  DB_PORT: 5432
-  DB_USER: your_username
-  DB_PASSWORD: your_password
-  DATABASE: your_database_name
-  BACKUP_EVERY_24H: "true"
-  MAX_BACKUPS: 10
+  DATABASE_URL: postgresql://user:password@metadata-db:5432/backupper_metadata
   # Optional S3 upload:
   # S3_BUCKET: my-backups
   # S3_ACCESS_KEY: your_access_key
@@ -34,49 +28,112 @@ environment:
 docker compose up -d
 ```
 
-Backups are stored in `/tmp` inside the container. Mount a volume to persist them:
+The compose file includes a `metadata-db` PostgreSQL service for storing backup request records. The service applies Prisma migrations automatically on startup.
 
-```yaml
-volumes:
-  - ./backups:/tmp
+## How It Works
+
+1. A client sends a `POST /backups` request with database connection details
+2. The request is stored with status `pending`
+3. The **dump processor** (every 15 min) picks up pending requests, runs `pg_dump`, sets status to `dumped`
+4. The **upload processor** (every 15 min) picks up dumped requests, uploads to S3, sets status to `uploaded`
+
 ```
+Status lifecycle: pending → dumping → dumped → uploading → uploaded
+                                                        ↘ failed (at any stage)
+```
+
+## API Endpoints
+
+Interactive docs available at `/api-docs` once the server is running.
+
+### Create a backup request
+
+```
+POST /backups
+Content-Type: application/json
+
+{
+  "host": "db.example.com",
+  "port": 5432,
+  "user": "postgres",
+  "password": "secret",
+  "database": "myapp_production"
+}
+```
+
+Response `201 Created` (password excluded):
+
+```json
+{
+  "id": "clx...",
+  "status": "pending",
+  "host": "db.example.com",
+  "port": 5432,
+  "user": "postgres",
+  "database": "myapp_production",
+  "createdAt": "2026-06-01T06:00:00.000Z"
+}
+```
+
+### List all backup requests
+
+```
+GET /backups
+```
+
+Returns an array of all backup requests (newest first), passwords excluded.
+
+### Get a specific backup request
+
+```
+GET /backups/<id>
+```
+
+Returns the request details or `404` if not found. Passwords are excluded from responses.
+
+### Health check
+
+```
+GET /health
+```
+
+Returns database connectivity status.
+
+### API documentation
+
+```
+GET /api-docs
+```
+
+Serves Swagger UI with the full OpenAPI specification.
 
 ## Environment Variables
 
-### Database & Server
+### Required
 
-| Variable | Required | Description | Default |
-|----------|----------|-------------|---------|
-| `PORT` | Yes | Express server port | — |
-| `DB_HOST` | Yes | PostgreSQL hostname | — |
-| `DB_PORT` | Yes | PostgreSQL port | — |
-| `DB_USER` | Yes | PostgreSQL username | — |
-| `DB_PASSWORD` | Yes | PostgreSQL password | — |
-| `DATABASE` | Yes | Database name | — |
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Express server port (default: `12500`) |
+| `DATABASE_URL` | PostgreSQL connection string for the metadata database |
 
-### Schedules
-
-Set any combination to `"true"` to enable:
-
-| Variable | Schedule |
-|----------|----------|
-| `BACKUP_EVERY_2H` | Every 2 hours |
-| `BACKUP_EVERY_8H` | Every 8 hours |
-| `BACKUP_EVERY_24H` | Daily at 2:00 AM |
-| `BACKUP_WEEKLY` | Weekly on Sunday at 2:00 AM |
-
-### Retention & S3
+### Processor
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MAX_BACKUPS` | Max local backups to keep (oldest deleted first) | Unlimited |
-| `S3_BUCKET` | S3 bucket name. Uploads are skipped if not set | — |
+| `PROCESSOR_INTERVAL` | Polling interval in seconds for both dump and upload processors | `900` (15 min) |
+
+### S3 (optional)
+
+All S3 variables are optional. If `S3_BUCKET` is not set, backups exist only in local `/tmp` storage and are marked as `uploaded` (skipped).
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `S3_BUCKET` | S3 bucket name | — |
 | `S3_ACCESS_KEY` | Required if `S3_BUCKET` is set | — |
 | `S3_SECRET_KEY` | Required if `S3_BUCKET` is set | — |
 | `S3_REGION` | AWS region | `us-east-1` |
-| `S3_ENDPOINT` | Custom endpoint for MinIO, Spaces, etc. | AWS |
-| `S3_PATH_PREFIX` | Folder prefix in the bucket | None |
-| `S3_RETRY_INTERVAL` | Seconds between upload retries | `300` |
+| `S3_ENDPOINT` | Custom endpoint for MinIO, DigitalOcean Spaces, etc. | AWS |
+| `S3_PATH_PREFIX` | Folder prefix in the bucket | — |
 
 ## Docker Image
 
@@ -85,6 +142,30 @@ Pre-built images on [Docker Hub](https://hub.docker.com/repository/docker/sergio
 ```bash
 docker pull sergion14/database-backup:latest
 ```
+
+## Local Development
+
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run start:local
+```
+
+Run tests:
+
+```bash
+npm test
+```
+
+## Architecture
+
+- **Express 5** — HTTP server with JSON body parsing
+- **Prisma ORM** — metadata database for backup request tracking
+- **`pg_dump`** — PostgreSQL client tool for creating dumps
+- **`@aws-sdk/client-s3`** — S3-compatible uploads (AWS, MinIO, DO Spaces, etc.)
+- **Swagger UI** — auto-generated API docs from JSDoc annotations
+- **Internal processors** — poll-based queue consumers (not cron-based)
 
 ## License
 

@@ -8,7 +8,7 @@ ARG NODE_VERSION=26
 FROM node:${NODE_VERSION}-alpine
 
 # Set the working directory inside the container
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # Install PostgreSQL client utilities (pg_dump)
 RUN apk add --no-cache postgresql-client
@@ -18,11 +18,17 @@ RUN apk add --no-cache postgresql-client
 RUN --mount=type=bind,source=package.json,target=package.json \
     --mount=type=bind,source=package-lock.json,target=package-lock.json \
     --mount=type=cache,target=/root/.npm \
-    npm ci --omit-dev 
+    npm ci --omit-dev
+
 
 # Copy package files and source code
 COPY package.json package-lock.json ./
+COPY prisma/ ./prisma/
 COPY src/ ./src/
+
+# Generate Prisma client
+RUN npx prisma generate
+
 
 # Switch to non-root user for better security
 # USER node
@@ -34,5 +40,6 @@ EXPOSE 12500
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:12500/health || exit 1
 
-# Set the default command to run the local startup script
-CMD ["npm", "run", "start:deploy"] 
+# Set the default command to run prisma migrate deploy and start the app
+# CMD npx prisma migrate deploy && npm run start:deploy 
+CMD npm run start:deploy 

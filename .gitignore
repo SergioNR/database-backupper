@@ -9,3 +9,5 @@
 .DS_Store
 
 compose.yaml
+/src/generated
+prisma.config.ts
